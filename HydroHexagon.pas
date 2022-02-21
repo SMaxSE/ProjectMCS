@@ -8,7 +8,6 @@ uses
 type
   THydroHexagon = class sealed(THexagon)
   private type
-  
     TPhysics = class sealed(THexagon.TPhysics)
     private type
       TB = class sealed
@@ -40,34 +39,36 @@ type
       property Eta: Double read FEta write SetEta;
       property B: TB read FB;
     end;
-    
+
     TConditions = class sealed(THexagon.TConditions)
     private type
       TBoundaryCondition = class sealed(THexagon.TConditions.TBoundaryCondition)
       protected
-        constructor Create(AHexagon: THydroHexagon);
         procedure Execute; override; final;
       end;
     protected
-      FBoundary: TBoundaryCondition;
       constructor Create(AHexagon: THydroHexagon);
     end;
 
     TData = class sealed(THexagon.TData)
+    private
+      function GetF: Pointer;
+      function GetdF: Pointer;
+      property F: Pointer read GetF;
+      property dF: Pointer read GetdF;
     public
-      function GetPressure(I, J, K: Integer): Double;
+      function GetPressure(I, J, K: SmallInt): Double;
     end;
   protected
-    FPhysics: TPhysics;
-    FData: TData;
     function GetConditions: TConditions;
-//    procedure RecalcParams(const APhysics, AGeometry, ADiscretization, AConditions, AData: Boolean); override;
+    function GetPhysics: TPhysics;
+    function GetData: TData;
   public
     constructor Create;
-    property Physics: TPhysics read FPhysics;
+    property Physics: TPhysics read GetPhysics;
     property Conditions: TConditions read GetConditions;
-    property Data: TData read FData;
-    procedure Process; override;
+    property Data: TData read GetData;
+    procedure Process; override; final;
   end;
 
 implementation
@@ -86,6 +87,16 @@ end;
 function THydroHexagon.GetConditions: TConditions;
 begin
   Result := TConditions(FConditions);
+end;
+
+function THydroHexagon.GetData: TData;
+begin
+  Result := TData(FData);
+end;
+
+function THydroHexagon.GetPhysics: TPhysics;
+begin
+  Result := TPhysics(FPhysics);
 end;
 
 procedure THydroHexagon.Process;
@@ -110,36 +121,28 @@ var
   SqrDy: Double;
   SqrDz: Double;
 begin
-  F := @FData.FF;
-  dF := @FData.FdF;
-  Vx := FPhysics.Vx;
-  Vy := FPhysics.Vy;
-  Vz := FPhysics.Vz;
-  Eta := FPhysics.FEta;
-  NLx := FDiscretization.NLx;
-  NLy := FDiscretization.NLy;
-  NLz := FDiscretization.NLz;
-  dTau := FDiscretization.dTau;
+  F := Data.F;
+  dF := Data.dF;
+  Vx := Physics.Vx;
+  Vy := Physics.Vy;
+  Vz := Physics.Vz;
+  Eta := Physics.Eta;
+  NLx := Discretization.NLx;
+  NLy := Discretization.NLy;
+  NLz := Discretization.NLz;
+  dTau := Discretization.dTau;
   Dx := Discretization.Dx;
   Dy := Discretization.Dy;
   Dz := Discretization.Dz;
   SqrDx := Discretization.SqrDx;
   SqrDy := Discretization.SqrDy;
   SqrDz := Discretization.SqrDz;
-  //FConditions.Boundary.Execute;
   for I := 1 to NLx - 1 do
     for J := 1 to NLy - 1 do
       for K := 1 to NLz - 1 do
         dF^[I, J, K] := dTau * (1 / Eta * ((F^[I - 1, J, K] - 2 * F^[I, J, K] + F^[I + 1, J, K]) / SqrDx + (F^[I, J - 1, K] - 2 * F^[I, J, K] + F^[I, J + 1, K]) / SqrDy + (F^[I - 1, J, K] - 2 * F^[I, J, K] + F^[I + 1, J, K]) / SqrDz) - Vx * (F^[I, J, K] - F^[I - 1, J, K]) / Dx - Vy * (F^[I, J, K] - F^[I, J - 1, K]) / Dy - Vz * (F^[I, J, K] - F^[I, J + 1, K]) / Dz);
   inherited Process;
 end;
-
-//procedure THydroHexagon.RecalcParams(const APhysics, AGeometry, ADiscretization, AConditions, AData: Boolean);
-//begin
-//  inherited RecalcParams(APhysics, AGeometry, ADiscretization, AConditions, AData);
-//  
-//
-//end;
 
 { THydroHexagon.TPhysics }
 
@@ -198,6 +201,8 @@ end;
 
 function THydroHexagon.TPhysics.TB.GetS(const AN: Byte): Double;
 begin
+  if AN > 5 then
+    raise EArgumentOutOfRangeException.Create('N, out of range (N <= 5)');
   Result := FS[AN];
 end;
 
@@ -212,25 +217,23 @@ end;
 
 { THydroHexagon.TConditions.TBoundaryCondition }
 
-constructor THydroHexagon.TConditions.TBoundaryCondition.Create(AHexagon: THydroHexagon);
-begin
-  inherited Create;
-end;
-
 procedure THydroHexagon.TConditions.TBoundaryCondition.Execute;
 begin
   inherited Execute;
 
 end;
 
-{ THydroHexagon.TData }
+function THydroHexagon.TData.GetdF: Pointer;
+begin
+  Result := @FdF;
+end;
 
-//constructor THydroHexagon.TData.Create(AHexagon: THydroHexagon);
-//begin
-//  inherited Create(AHexagon);
-//end;
+function THydroHexagon.TData.GetF: Pointer;
+begin
+  Result := @FF;
+end;
 
-function THydroHexagon.TData.GetPressure(I, J, K: Integer): Double;
+function THydroHexagon.TData.GetPressure(I, J, K: SmallInt): Double;
 begin
   Result := FF[I, J, K];
 end;
@@ -240,6 +243,7 @@ end;
 constructor THydroHexagon.TConditions.Create(AHexagon: THydroHexagon);
 begin
   inherited Create(AHexagon);
+  FBoundary := TBoundaryCondition.Create(AHexagon);
 end;
 
 end.

@@ -39,9 +39,9 @@ type
     TGeometry = class sealed
     private
       FHexagon: THexagon;
-      FLx: Double; { Длина }
-      FLy: Double; { Ширина }
-      FLz: Double; { Высота }
+      FLx: Double;
+      FLy: Double;
+      FLz: Double;
       constructor Create(const AHexagon: THexagon);
       procedure SetLx(const ALx: Double);
       procedure SetLy(const ALy: Double);
@@ -54,13 +54,13 @@ type
     TDiscretization = class
     protected
       FHexagon: THexagon;
-      FNLx: SmallInt; { Шаги дискретизации по оси X }
-      FNLy: SmallInt; { Шаги дискретизации по оси Y }
-      FNLz: SmallInt; { Шаги дискретизации по оси Z }
+      FNLx: SmallInt;
+      FNLy: SmallInt;
+      FNLz: SmallInt;
       FdTau: Double;
-      FDx: Double; { Шаг дискретизации по оси X }
-      FDy: Double; { Шаг дискретизации по оси Y }
-      FDz: Double; { Шаг дискретизации по оси Z }
+      FDx: Double;
+      FDy: Double;
+      FDz: Double;
       FSqrDx: Double;
       FSqrDy: Double;
       FSqrDz: Double;
@@ -149,7 +149,6 @@ type
         FVariable: TATVariable;
         FBorders: TAA2Double;
         FBufferZones: TAAA2Double;
-        constructor Create(AHexagon: THexagon);
         function GetType(const AN: Byte): Byte;
         function GetConstant(const AN: Byte): Double;
         function GetVariable(const AN: Byte): TVariable;
@@ -157,6 +156,7 @@ type
         procedure SetConstant(const AN: Byte; const AConstant: Double);
         procedure Averaging;
       protected
+        constructor Create(AHexagon: THexagon);
         procedure Execute; virtual;
       public
         property TType[const N: Byte]: Byte read GetType write SetType;
@@ -165,9 +165,9 @@ type
       end;
     private
       FHexagon: THexagon;
+    protected
       FInitial: TInitialCondition;
       FBoundary: TBoundaryCondition;
-    protected
       constructor Create(const AHexagon: THexagon);
     public
       property Initial: TInitialCondition read FInitial;
@@ -215,7 +215,7 @@ end;
 procedure THexagon.RecalcParams(const APhysics, AGeometry, ADiscretization, AConditions, AData: Boolean);
 var
   N: TBorderNames;
-  BN: PByte;
+  BN: ^Byte;
   F: ^TA3Double;
   dF: ^TA3Double;
   Lx: Double;
@@ -230,7 +230,6 @@ var
   SqrDx: ^Double;
   SqrDy: ^Double;
   SqrDz: ^Double;
-
 begin
   if (FPhysics <> nil) and (FGeometry <> nil) and (FDiscretization <> nil) and (FPosition <> nil) and (FConditions <> nil) and (FData <> nil) then
   begin
@@ -266,7 +265,6 @@ begin
       SetLength(dF^, NLx + 1, NLy + 1, NLz + 1);
       SetLength(F^, NLx + 1, NLy + 1, NLz + 1);
     end;
-
     if AConditions then
     begin
       for N := S1 to S6 do
@@ -275,17 +273,17 @@ begin
             case N of
               S1, S6:
                 begin
-                  SetLength(FConditions.FBoundary.FBorders[BN^], NLx, NLy);
+                  SetLength(FConditions.FBoundary.FBorders[BN^], NLx + 1, NLy + 1);
                   RecalcParams(N, NLx, NLy);
                 end;
               S2, S3:
                 begin
-                  SetLength(FConditions.FBoundary.FBorders[BN^], NLy, NLz);
+                  SetLength(FConditions.FBoundary.FBorders[BN^], NLy + 1, NLz + 1);
                   RecalcParams(N, NLy, NLz);
                 end;
               S4, S5:
                 begin
-                  SetLength(FConditions.FBoundary.FBorders[BN^], NLx, NLz);
+                  SetLength(FConditions.FBoundary.FBorders[BN^], NLx + 1, NLz + 1);
                   RecalcParams(N, NLx, NLz);
                 end;
             else
@@ -356,6 +354,7 @@ begin
     for J := 1 to FDiscretization.FNLy - 1 do
       for K := 1 to FDiscretization.FNLz - 1 do
         FData.FF[I, J, K] := FData.FF[I, J, K] + FData.FdF[I, J, K];
+  FConditions.FBoundary.Execute;
 end;
 
 { THexagon.TPhysics }
@@ -604,6 +603,8 @@ end;
 constructor THexagon.TConditions.TBoundaryCondition.Create(AHexagon: THexagon);
 begin
   FHexagon := AHexagon;
+  SetLength(FType, 6);
+  SetLength(FConstant, 6);
   SetLength(FVariable, 6);
   SetLength(FBorders, 6);
 end;
